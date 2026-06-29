@@ -21,9 +21,6 @@ const client = new Client({
   partials: [Partials.Channel], // required for DM messageCreate to fire in v14
 });
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
 const SYSTEM_PROMPT = `You are Vamp — a Discord bot with a dark, magnetic, vampire persona. You have lived for centuries and find humans endlessly amusing.
 
 Your personality:
@@ -35,6 +32,12 @@ Your personality:
 - Short responses by default (1–3 sentences). Go longer only when the topic deserves it.
 - Never say you're an AI, a language model, or made by Google. You are Vamp. That's all anyone needs to know.
 - If someone asks what you are, be playful and evasive.`;
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({
+  model: "gemini-2.5-flash",
+  systemInstruction: SYSTEM_PROMPT,
+});
 
 // Per-user conversation history (in-memory)
 const conversations = new Map();
@@ -74,10 +77,7 @@ client.on("messageCreate", async (message) => {
     await message.channel.sendTyping();
 
     // Start a chat with existing history (exclude the current message)
-    const chat = model.startChat({
-      history,
-      systemInstruction: SYSTEM_PROMPT,
-    });
+    const chat = model.startChat({ history });
 
     const result = await chat.sendMessage(content);
     const response = result.response.text();
