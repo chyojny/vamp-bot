@@ -1,13 +1,12 @@
 const { Client, GatewayIntentBits, ChannelType, Partials } = require("discord.js");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 
-// Validate required env vars
 if (!process.env.DISCORD_BOT_TOKEN) {
-  console.error("Missing DISCORD_BOT_TOKEN environment variable");
+  console.error("Missing DISCORD_BOT_TOKEN");
   process.exit(1);
 }
 if (!process.env.GEMINI_API_KEY) {
-  console.error("Missing GEMINI_API_KEY environment variable");
+  console.error("Missing GEMINI_API_KEY");
   process.exit(1);
 }
 
@@ -18,8 +17,10 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
   ],
-  partials: [Partials.Channel], // required for DM messageCreate to fire in v14
+  partials: [Partials.Channel],
 });
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const SYSTEM_PROMPT = `you are vamp. you talk like a chill friend who is quietly funny and a little too self-aware
 
@@ -43,31 +44,22 @@ formatting rules never break these:
 - no vampire references
 - never say youre an AI or a bot or made by google. you are just vamp`;
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash",
-  systemInstruction: SYSTEM_PROMPT,
-});
-
-// Per-user conversation history (in-memory)
+// Per-user conversation history keyed by user+channel
 const conversations = new Map();
-const MAX_HISTORY = 20; // messages to keep per user
+const MAX_HISTORY = 20;
 
 client.once("ready", () => {
   console.log(`vamp is awake. logged in as ${client.user.tag}`);
 });
 
 client.on("messageCreate", async (message) => {
-  // Ignore bots
   if (message.author.bot) return;
 
   const isDM = message.channel.type === ChannelType.DM;
   const isMentioned = message.mentions.has(client.user);
 
-  // Only respond when mentioned in a server, or always in DMs
   if (!isDM && !isMentioned) return;
 
-  // Strip only the bot's own mention and trim
   const botMentionRegex = new RegExp(`<@!?${client.user.id}>`, "g");
   const content = message.content.replace(botMentionRegex, "").trim();
 
@@ -76,7 +68,6 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // Key history by user+channel so DMs and different servers stay isolated
   const historyKey = `${message.author.id}:${message.channelId}`;
   if (!conversations.has(historyKey)) {
     conversations.set(historyKey, []);
@@ -86,35 +77,39 @@ client.on("messageCreate", async (message) => {
   try {
     await message.channel.sendTyping();
 
-    // Start a chat with existing history (exclude the current message)
-    const chat = model.startChat({ history });
+    // Build full contents: history + current message
+    const contents = [
+      ...history,
+      { role: "user", parts: [{ text: content }] },
+    ];
 
-    const result = await chat.sendMessage(content);
-    const response = result.response.text();
+    const result = await ai.models.generateContent({
+      model: "gemini-2.0-flash-lite",
+      contents,
+      config: { systemInstruction: SYSTEM_PROMPT },
+    });
 
-    // Append both turns to history
+    const reply = result.text;
+
+    // Save both turns to history
     history.push({ role: "user", parts: [{ text: content }] });
-    history.push({ role: "model", parts: [{ text: response }] });
+    history.push({ role: "model", parts: [{ text: reply }] });
 
-    // Keep history from growing forever
     if (history.length > MAX_HISTORY) {
       history.splice(0, history.length - MAX_HISTORY);
     }
 
-    // Discord messages max 2000 chars — split if needed
-    if (response.length <= 2000) {
-      await message.reply(response);
+    if (reply.length <= 2000) {
+      await message.reply(reply);
     } else {
-      const chunks = response.match(/[\s\S]{1,2000}/g) || [];
+      const chunks = reply.match(/[\s\S]{1,2000}/g) || [];
       for (const chunk of chunks) {
         await message.channel.send(chunk);
       }
     }
   } catch (err) {
     console.error("Error generating response:", err);
-    await message.reply(
-      "something stirred in the darkness and went wrong. try again in a moment."
-    );
+    await message.reply("something went wrong, try again in a sec");
   }
 });
 
