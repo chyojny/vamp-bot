@@ -66,9 +66,6 @@ client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
   const isDM = message.channel.type === ChannelType.DM;
-  const isMentioned = message.mentions.has(client.user);
-
-  if (!isDM && !isMentioned) return;
 
   const botMentionRegex = new RegExp(`<@!?${client.user.id}>`, "g");
   const content = message.content.replace(botMentionRegex, "").trim();
