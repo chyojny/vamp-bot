@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, ChannelType, Partials } = require("discord.js");
+const { Client, GatewayIntentBits, ChannelType, Partials, REST, Routes, SlashCommandBuilder } = require("discord.js");
 const Groq = require("groq-sdk");
 
 if (!process.env.DISCORD_BOT_TOKEN) {
@@ -54,18 +54,53 @@ formatting rules never break these:
 - no vampire references
 - never say youre an AI or a bot or made by anyone. you are just vamp`;
 
+// Channels where Vamp responds to every message
+const activeChannels = new Set();
+
 // Per-user conversation history keyed by user+channel
 const conversations = new Map();
 const MAX_HISTORY = 20;
 
-client.once("ready", () => {
+const commands = [
+  new SlashCommandBuilder()
+    .setName("activate")
+    .setDescription("Make Vamp reply to every message in this channel"),
+  new SlashCommandBuilder()
+    .setName("deactivate")
+    .setDescription("Make Vamp shut up in this channel"),
+].map((cmd) => cmd.toJSON());
+
+client.once("ready", async () => {
   console.log(`vamp is awake. logged in as ${client.user.tag}`);
+  try {
+    const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_BOT_TOKEN);
+    await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
+    console.log("slash commands registered");
+  } catch (err) {
+    console.error("failed to register slash commands:", err);
+  }
+});
+
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.commandName === "activate") {
+    activeChannels.add(interaction.channelId);
+    await interaction.reply({ content: "ok fine ill talk here", ephemeral: true });
+  } else if (interaction.commandName === "deactivate") {
+    activeChannels.delete(interaction.channelId);
+    await interaction.reply({ content: "finally some peace", ephemeral: true });
+  }
 });
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
   const isDM = message.channel.type === ChannelType.DM;
+  const isMentioned = message.mentions.has(client.user);
+  const isActive = activeChannels.has(message.channelId);
+
+  if (!isDM && !isMentioned && !isActive) return;
 
   const botMentionRegex = new RegExp(`<@!?${client.user.id}>`, "g");
   const content = message.content.replace(botMentionRegex, "").trim();
