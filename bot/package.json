@@ -1,0 +1,13 @@
+{
+  "name": "vamp",
+  "version": "1.0.0",
+  "description": "Vamp — a Gemini-powered Discord bot with vampire personality",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "@google/generative-ai": "^0.24.0"
+  }
+}

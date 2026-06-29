@@ -1,6 +1,6 @@
-# [Project name]
+# Vamp
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A Gemini-powered Discord bot with a dark, vampire personality — responds to mentions and DMs with wit, flavor, and per-conversation memory.
 
 ## Run & Operate
 
