@@ -1,12 +1,12 @@
 const { Client, GatewayIntentBits, ChannelType, Partials } = require("discord.js");
-const { GoogleGenAI } = require("@google/genai");
+const Groq = require("groq-sdk");
 
 if (!process.env.DISCORD_BOT_TOKEN) {
   console.error("Missing DISCORD_BOT_TOKEN");
   process.exit(1);
 }
-if (!process.env.GEMINI_API_KEY) {
-  console.error("Missing GEMINI_API_KEY");
+if (!process.env.GROQ_API_KEY) {
+  console.error("Missing GROQ_API_KEY");
   process.exit(1);
 }
 
@@ -20,7 +20,7 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const SYSTEM_PROMPT = `you are vamp. you talk like a chill friend who is quietly funny and a little too self-aware
 
@@ -42,7 +42,7 @@ formatting rules never break these:
 - no asterisk actions like *sighs*. just talk
 - dont always use the persons name. only occasionally
 - no vampire references
-- never say youre an AI or a bot or made by google. you are just vamp`;
+- never say youre an AI or a bot or built by anyone. you are just vamp`;
 
 // Per-user conversation history keyed by user+channel
 const conversations = new Map();
@@ -77,23 +77,19 @@ client.on("messageCreate", async (message) => {
   try {
     await message.channel.sendTyping();
 
-    // Build full contents: history + current message
-    const contents = [
-      ...history,
-      { role: "user", parts: [{ text: content }] },
-    ];
-
-    const result = await ai.models.generateContent({
-      model: "gemini-2.0-flash-lite",
-      contents,
-      config: { systemInstruction: SYSTEM_PROMPT },
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...history,
+        { role: "user", content },
+      ],
     });
 
-    const reply = result.text;
+    const reply = completion.choices[0].message.content;
 
-    // Save both turns to history
-    history.push({ role: "user", parts: [{ text: content }] });
-    history.push({ role: "model", parts: [{ text: reply }] });
+    history.push({ role: "user", content });
+    history.push({ role: "assistant", content: reply });
 
     if (history.length > MAX_HISTORY) {
       history.splice(0, history.length - MAX_HISTORY);
