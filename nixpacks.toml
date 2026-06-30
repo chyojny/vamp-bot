@@ -1,0 +1,5 @@
+[phases.install]
+cmds = ["cd bot && npm install"]
+
+[start]
+cmd = "cd bot && node index.js"
