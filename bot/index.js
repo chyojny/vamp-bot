@@ -58,6 +58,9 @@ const activeChannels = new Set();
 const conversations = new Map();
 const MAX_HISTORY = 20;
 
+// Prevent duplicate processing of the same message
+const processing = new Set();
+
 const commands = [
   new SlashCommandBuilder()
     .setName("activate")
@@ -101,6 +104,11 @@ client.on("error", (err) => {
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
+  // prevent duplicate processing of the same message
+  if (processing.has(message.id)) return;
+  processing.add(message.id);
+  setTimeout(() => processing.delete(message.id), 30000);
+
   const isDM = message.channel.type === ChannelType.DM;
   const isMentioned = message.mentions.has(client.user);
   const isActive = activeChannels.has(message.channelId);
@@ -111,7 +119,7 @@ client.on("messageCreate", async (message) => {
   const content = message.content.replace(botMentionRegex, "").trim();
 
   if (!content) {
-    await message.reply("you called?");
+    await message.channel.send("you called?");
     return;
   }
 
@@ -121,9 +129,7 @@ client.on("messageCreate", async (message) => {
   }
   const history = conversations.get(historyKey);
 
-  try {
-    await message.channel.sendTyping();
-  } catch (_) {}
+  try { await message.channel.sendTyping(); } catch (_) {}
 
   let reply;
   try {
@@ -138,7 +144,7 @@ client.on("messageCreate", async (message) => {
     reply = completion.choices[0].message.content;
   } catch (err) {
     console.error("Error generating response:", err);
-    await message.reply("something went wrong, try again in a sec");
+    try { await message.channel.send("something went wrong, try again in a sec"); } catch (_) {}
     return;
   }
 
@@ -150,7 +156,7 @@ client.on("messageCreate", async (message) => {
 
   try {
     if (reply.length <= 2000) {
-      await message.reply(reply);
+      await message.channel.send(reply);
     } else {
       const chunks = reply.match(/[\s\S]{1,2000}/g) || [];
       for (const chunk of chunks) {
