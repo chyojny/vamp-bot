@@ -132,21 +132,24 @@ client.on("messageCreate", async (message) => {
   try { await message.channel.sendTyping(); } catch (_) {}
 
   let reply;
-  try {
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...history,
-        { role: "user", content },
-      ],
-    });
-    reply = completion.choices[0].message.content;
-  } catch (err) {
-    console.error("Error generating response:", err);
-    try { await message.channel.send("something went wrong, try again in a sec"); } catch (_) {}
-    return;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          ...history,
+          { role: "user", content },
+        ],
+      });
+      reply = completion.choices[0].message.content;
+      break;
+    } catch (err) {
+      console.error(`Groq attempt ${attempt + 1} failed:`, err?.message || err);
+      if (attempt < 2) await new Promise(r => setTimeout(r, 1500));
+    }
   }
+  if (!reply) return;
 
   history.push({ role: "user", content });
   history.push({ role: "assistant", content: reply });
