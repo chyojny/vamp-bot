@@ -81,13 +81,21 @@ client.once("ready", async () => {
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
-  if (interaction.commandName === "activate") {
-    activeChannels.add(interaction.channelId);
-    await interaction.reply({ content: "ok fine ill talk here", ephemeral: true });
-  } else if (interaction.commandName === "deactivate") {
-    activeChannels.delete(interaction.channelId);
-    await interaction.reply({ content: "finally some peace", ephemeral: true });
+  try {
+    if (interaction.commandName === "activate") {
+      activeChannels.add(interaction.channelId);
+      await interaction.reply({ content: "ok fine ill talk here", flags: 64 });
+    } else if (interaction.commandName === "deactivate") {
+      activeChannels.delete(interaction.channelId);
+      await interaction.reply({ content: "finally some peace", flags: 64 });
+    }
+  } catch (err) {
+    console.error("Interaction error:", err);
   }
+});
+
+client.on("error", (err) => {
+  console.error("Client error:", err);
 });
 
 client.on("messageCreate", async (message) => {
