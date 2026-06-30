@@ -115,7 +115,10 @@ client.on("messageCreate", async (message) => {
 
   try {
     await message.channel.sendTyping();
+  } catch (_) {}
 
+  let reply;
+  try {
     const completion = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: [
@@ -124,16 +127,20 @@ client.on("messageCreate", async (message) => {
         { role: "user", content },
       ],
     });
+    reply = completion.choices[0].message.content;
+  } catch (err) {
+    console.error("Error generating response:", err);
+    await message.reply("something went wrong, try again in a sec");
+    return;
+  }
 
-    const reply = completion.choices[0].message.content;
+  history.push({ role: "user", content });
+  history.push({ role: "assistant", content: reply });
+  if (history.length > MAX_HISTORY) {
+    history.splice(0, history.length - MAX_HISTORY);
+  }
 
-    history.push({ role: "user", content });
-    history.push({ role: "assistant", content: reply });
-
-    if (history.length > MAX_HISTORY) {
-      history.splice(0, history.length - MAX_HISTORY);
-    }
-
+  try {
     if (reply.length <= 2000) {
       await message.reply(reply);
     } else {
@@ -143,8 +150,7 @@ client.on("messageCreate", async (message) => {
       }
     }
   } catch (err) {
-    console.error("Error generating response:", err);
-    await message.reply("something went wrong, try again in a sec");
+    console.error("Error sending reply:", err);
   }
 });
 
